@@ -1,0 +1,95 @@
+---
+title: "Machine Learning Project"
+output: html_document
+---
+
+The goal of the project is to predict how 6 participants of a studies perform bareball lifts using devices such as Jawbone Up, Nike FuelBand and Fitbit to collect the data. The dataset is made of data from accelerometers on the belt, forearm, arm, and dumbell. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har
+
+## Getting and Cleaning Data
+
+Two different dataset is given: the training data and the test data.
+
+```{r cache=TRUE}
+train <- read.csv('http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', na.strings=c("","NA"))
+testPrediction <- read.csv('http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', na.strings=c("","NA"))
+```
+
+The train objet will be used to build the prediction model that will be used to classify the exercise of the test object. It has 19622 observations of 160 variables. However, there is a lot of missing values that could affect the prediction. Moreoever, some variables give a very good overview of the dataset, but are completely irrelevent to predict the "classe" outcome. 
+
+The code below get rid of the irrelevant variables and remove every columns having more than 90% of missing values. The result is a new train dataset with 53 variables and no missing values.
+```{r}
+train <- train[,!names(train) %in% c('X','user_name','raw_timestamp_part_1','raw_timestamp_part_2','cvtd_timestamp','new_window','num_window')]
+colToRemove <- which((colSums(is.na(train))/nrow(train)) > 0.90)
+train <- train[,-colToRemove]
+```
+ 
+
+## Slicing the dataset and building model
+
+The train dataset will be split into two, 70% of the value will remain in the train dataset and 30% will be transfer to the "test" object to perform cross validation tests.
+```{r}
+set.seed(1234)
+library(caret)
+inTrain <- createDataPartition(train$classe, p=0.70, list=FALSE)
+train <- train[inTrain,]
+test <- train[-inTrain,]
+dim(train);dim(test)
+```
+
+
+## Prediction
+
+To create the model, I will use 10 k-fold cross validation to pick the best predictors. It means that ~10% of the current train dataset will be used to test the accuracy of the model and average the error it generated against the 10 folds to estimate the average error rate we would get in an out of sample error procedure.
+
+#### Predicting with Tree
+
+```{r cache=TRUE}
+train_control <- trainControl(method="cv", number=10)
+
+treemodel <- train(train$classe ~ ., data=train, method='rpart', trControl=train_control)
+ptree <- predict(treemodel, newdata=test)
+confusionMatrix(ptree, test$classe)
+```
+
+A tree is very easy to interpret, however it performs a very poor prediction of the outcome. With an accuracy of 0.489 and an out of sample error of 1-0.489=0.511, testing another algorythm rather than fine tuning this one seems a good choice. 
+
+#### Predicting with Random Forest
+
+To build the model with random forest, i will use the randomForest() function instead of the caret package to have a better processing performance. The default value will generate 500 trees.
+```{r cache=TRUE}
+rf <- randomForest(classe ~ ., data=train)
+rf
+```
+
+The estimate of error rate if 0.5%. The performance of the model should be very good. As we can see in the Confusion Matrix, there is a very low misclassified classe. Let's see how it performs with the test dataset.
+
+```{r cache=TRUE}
+prf <- predict(rf, newdata=test)
+confusionMatrix(test$classe,prf)
+```
+
+Using Random Forest, the model has an accuracy of 100%. The Out of Sample Error is 0. This is an impressive result, however it doesn't mean it will perform the same with the testPrediction dataset. The prediction model can be overfitted. We need to keep in mind that the test dataset originaly comes from the train dataset.
+
+The varImp() function shows the variable importance of the classification model. 
+```{r cache=TRUE}
+varImp(rf)
+```
+
+## Final Predict and Submitting result
+
+Using the random forest model, i will predict the classe of the 20 rows of the testPrediction dataset and generate the 20 files required to submit the results.
+
+```{r}
+finalPrediction <- predict(rf, newdata=testPrediction)
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(finalPrediction)
+```
+
