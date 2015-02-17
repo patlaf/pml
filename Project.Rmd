@@ -57,6 +57,7 @@ A tree is very easy to interpret, however it performs a very poor prediction of 
 
 To build the model with random forest, i will use the randomForest() function instead of the caret package to have a better processing performance. The default value will generate 500 trees.
 ```{r cache=TRUE}
+library(randomForest)
 rf <- randomForest(classe ~ ., data=train)
 rf
 ```
@@ -69,11 +70,6 @@ confusionMatrix(test$classe,prf)
 ```
 
 Using Random Forest, the model has an accuracy of 100%. The Out of Sample Error is 0. This is an impressive result, however it doesn't mean it will perform the same with the testPrediction dataset. The prediction model can be overfitted. We need to keep in mind that the test dataset originaly comes from the train dataset.
-
-The varImp() function shows the variable importance of the classification model. 
-```{r cache=TRUE}
-varImp(rf)
-```
 
 ## Final Predict and Submitting result
 
